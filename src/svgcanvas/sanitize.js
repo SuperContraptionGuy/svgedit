@@ -11,6 +11,24 @@ import { getHref, setHref, getUrlFromAttr } from './utilities.js'
 
 const REVERSE_NS = getReverseNS()
 
+// a new whitelist to help preserve HTML elements and attributes during sanitize. Used to check if an element should have it's style attribute preserved in addition to checking if it and it's attributes are allowed.
+const htmlWhiteList_ = {
+  // HTML elements (somewhere in the code base, these tags are replace with CAPITAL letters when loading a document)
+  div: ['xmlns'],
+  DIV: ['xmlns'],
+  p: [],
+  P: [],
+  ul: ['compact', 'type'],
+  ol: ['reversed', 'start', 'type'],
+  b: [],
+  i: [],
+  u: [],
+  a: ['download', 'href', 'hreflang', 'rel', 'target', 'type'],
+  span: [],
+  style: [],
+  link: ['href', 'rel', 'title', 'type'],
+}
+
 // Todo: Split out into core attributes, presentation attributes, etc. so consistent
 /**
  * This defines which elements and attributes that we support (or at least
@@ -20,8 +38,12 @@ const REVERSE_NS = getReverseNS()
 /* eslint-disable max-len */
 const svgGenericWhiteList = ['class', 'id', 'display', 'transform', 'style']
 const svgWhiteList_ = {
+  // HTML Elements
+  // inserted before the rest of the list since some keys overlap. In the case of an overlap, svgWhiteList_ items will take precedence over htmlWhiteList_ items.
+  ...htmlWhiteList_,
+
   // SVG Elements
-  a: ['clip-path', 'clip-rule', 'fill', 'fill-opacity', 'fill-rule', 'filter', 'mask', 'opacity', 'stroke', 'stroke-dasharray', 'stroke-dashoffset', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'stroke-opacity', 'stroke-width', 'systemLanguage', 'xlink:href', 'xlink:title'],
+  a: ['href', 'clip-path', 'clip-rule', 'fill', 'fill-opacity', 'fill-rule', 'filter', 'mask', 'opacity', 'stroke', 'stroke-dasharray', 'stroke-dashoffset', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'stroke-opacity', 'stroke-width', 'systemLanguage', 'xlink:href', 'xlink:title'],
   circle: ['clip-path', 'clip-rule', 'cx', 'cy', 'enable-background', 'fill', 'fill-opacity', 'fill-rule', 'filter', 'mask', 'opacity', 'r', 'requiredFeatures', 'stroke', 'stroke-dasharray', 'stroke-dashoffset', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'stroke-opacity', 'stroke-width', 'systemLanguage'],
   clipPath: ['clipPathUnits'],
   defs: [],
@@ -176,7 +198,9 @@ export const sanitizeSvg = (node) => {
       }
 
       // For the style attribute, rewrite it in terms of XML presentational attributes
-      if (attrName === 'style') {
+      // Check that the tag is not an HTML element before overwriting the style attribute (also skips that are both svg and html, may not be desirable)
+      const allowedHtmlAttrs = htmlWhiteList_[node.nodeName]
+      if (attrName === 'style' && allowedHtmlAttrs === 'undefined') {
         const props = attr.value.split(';')
         let p = props.length
         while (p--) {

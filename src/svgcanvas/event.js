@@ -639,8 +639,9 @@ const mouseUpEvent = (evt) => {
         } // no change in mouse position
 
         // Remove non-scaling stroke
+        // This used to overwrite and erase the style attribute on HTML elements when selecting and resizing.  I'll just make sure it's not a foreignObject tag before running over the style attribute
         const elem = selectedElements[0]
-        if (elem) {
+        if (elem && elem.tagName.toUpperCase() !== "FOREIGNOBJECT") {
           elem.removeAttribute('style')
           walkTree(elem, (el) => {
             el.removeAttribute('style')

@@ -49,6 +49,13 @@ class Layer {
 
     addLayerClass(this.group_)
     walkTree(this.group_, function (e) {
+
+      // double check that it's not a foreignObject or it's children otherwise style attributes are over-written on loading of document
+      // tells walkTree to stop recursing down this particular branch if it's a foreignObject.  This helps preserves HTML style tags.
+      if (e.tagName.toUpperCase() === "FOREIGNOBJECT") {
+        return 'break'
+      }
+
       e.setAttribute('style', 'pointer-events:inherit')
     })
 

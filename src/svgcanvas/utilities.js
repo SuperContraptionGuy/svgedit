@@ -288,7 +288,12 @@ export const bboxToObj = ({ x, y, width, height }) => {
 */
 export const walkTree = (elem, cbFn) => {
   if (elem?.nodeType === 1) {
-    cbFn(elem)
+    // adds the ability to break the recursion down a particular branch from inside the callback function
+    let retval = cbFn(elem)
+    if(retval === 'break') {
+      return
+    }
+
     let i = elem.childNodes.length
     while (i--) {
       walkTree(elem.childNodes.item(i), cbFn)
