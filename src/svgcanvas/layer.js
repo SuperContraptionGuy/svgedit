@@ -52,7 +52,7 @@ class Layer {
 
       // double check that it's not a foreignObject or it's children otherwise style attributes are over-written on loading of document
       // tells walkTree to stop recursing down this particular branch if it's a foreignObject.  This helps preserves HTML style tags.
-      if (e.tagName.toUpperCase() === "FOREIGNOBJECT") {
+      if (e.tagName === "foreignObject") {
         return 'break'
       }
 

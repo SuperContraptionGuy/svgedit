@@ -11,6 +11,7 @@
  *  by Squire (https://github.com/neilj/Squire).  The goal to to merge SVG with HTML.
  */
 
+
 const name = 'SquireHTML'
 
 const loadExtensionTranslation = async function (svgEditor) {
@@ -33,9 +34,42 @@ export default {
     const { svgCanvas } = svgEditor
     const { $id, $click } = svgCanvas
 
+    //console.log(document.activeElement)
+    // might be a little sketch
+    const svgeditBody = document.activeElement
+
     // stores the reference to newly added element between mouse events
     let newHTMLBox
     let started
+
+    // object to hold references to all the squire editor instances
+    //  TODO:
+    //    -create editors squireEditors.svg_1 = new Squire(editorDiv, {block-type: "p"....})
+    //    -focus/defocus editors  squireEditors.svg_1.focus() or  squireEditors.svg_1.blur()
+    //    -destroy editors with squireEditors.svg_1.destroy(); delete squireEditors.svg_1
+    let squireEditors = {};
+
+    const initializeSquire = (foreignObjectContainer) => {
+      let editorRoot = foreignObjectContainer.querySelector("div.SquireHTML-editor")
+      if(editorRoot == undefined) {
+        // sometimes the tag is capitalized, ask svg-edit why.  THIS is a major issue.
+        editorRoot = foreignObjectContainer.querySelector("DIV.SquireHTML-editor")
+        if(editorRoot == undefined) {
+          // can't find the div, probably not here.  can't create editor
+          return false
+        }
+      }
+      // take the first one found
+      console.log(editorRoot)
+      //editorRoot = editorRoot[0]
+
+      let editorTemp = new Squire(editorRoot, {blockTag: 'p' })
+      squireEditors[foreignObjectContainer.id] = editorTemp
+
+      // successfully created new editor
+      return true
+
+    }
 
     return {
       name: svgEditor.i18next.t(`${name}:name`),
@@ -73,7 +107,8 @@ export default {
               y:  opts.start_y,
               width:  0,
               height: 0,
-              id: svgCanvas.getNextId()
+              id: svgCanvas.getNextId(),
+              shape:  "html"  // for identifying Squire-editable html trees
             },
             children: [
               {
@@ -81,7 +116,8 @@ export default {
                 element:  "div",
                 attr:   {
                   xmlns:  "http://www.w3.org/1999/xhtml",
-                  style:  "overflow: hidden; border-style: dashed; height: 100%; display: block"
+                  class: "SquireHTML-editor",
+                  style:  "overflow: hidden; border-style: dashed; height: 100%; display: block; text-align: start"
                 },
                 children: [
                   {
@@ -97,6 +133,7 @@ export default {
               // maybe I should add default <style> section here?
             ]
           })
+
 
           // The returned object must include "started" with
           // a value of true in order for mouseUp to be triggered
@@ -128,6 +165,8 @@ export default {
         // this call isn't for me.  by not returning started: true, I'll stop getting called.
         return undefined
       },
+      
+      // used to initialize new Squire editors if the appropriate foreignObject and div tags are found and then adds the new object to the squireEditors[] array
 
       // This is triggered from anywhere, but "started" must have been set
       // to true (see above). Note that "opts" is an object with event info
@@ -136,7 +175,7 @@ export default {
         if (svgCanvas.getMode() === 'squirehtml') {
           console.log("mouseUp")
 
-          // check for negative width or height
+          // check for negative width or height.  Might be broken
           let w = Number(newHTMLBox.getAttribute('width'))
           let h = Number(newHTMLBox.getAttribute('height'))
           let x = Number(newHTMLBox.getAttribute('x'))
@@ -150,23 +189,73 @@ export default {
             newHTMLBox.setAttribute('h', -h)
           }
 
+          //let editorDiv = document.getElementById("SquireHTML-editor")
+    //    -create editors squireEditors.svg_1 = new Squire(editorDiv, {block-type: "p"....})
+    //    -focus/defocus editors  squireEditors.svg_1.focus() or  squireEditors.svg_1.blur()
+    //    -destroy editors with squireEditors.svg_1.destroy(); delete squireEditors.svg_1
+
+          // create new editor:
+          //squireEditors[newHTMLBox.id] = new Squire(newHTMLBox.querySelector("div.SquireHTML-editor"), { blockTag: 'p' })
+          if(initializeSquire(newHTMLBox)) {
+            // to help monitor the focus states for debugging
+            squireEditors[newHTMLBox.id].addEventListener('focus', () => {console.log("Squire gained focus") })
+            squireEditors[newHTMLBox.id].addEventListener('blur', () => { console.log("Squire lost focus") })
+            // focus is achieved through selectedChanged callback.
+            //squireEditors[newHTMLBox.id].focus()
+
+            svgCanvas.setMode("select")
+          }
+
           return {
             keep: true,
             element: newHTMLBox
           }
+        }
+      },
 
-          // example follows, skipped due to return
-          const zoom = svgCanvas.getZoom()
+      // use the selectedChanged callback to manage which foreignObject's Squire instance currently has focus, and to defocus if none of them are selected any longer.
 
-          // Get the actual coordinate by dividing by the zoom value
-          //const x = opts.mouse_x / zoom
-          //const y = opts.mouse_y / zoom
 
-          // We do our own formatting
-          const text = svgEditor.i18next.t(`${name}:text`, { x, y })
-          //const text = "I'm text bro"
-          // Show the text using the custom alert function
-          alert(text)
+      selectedChanged (opts) {
+        console.log("selectedChanged called")
+        let selElems = opts.elems
+        console.log(opts.elems)
+        console.log("currently focused element: ")
+        console.log(document.activeElement)
+
+        // defocus all
+        Object.values(squireEditors).forEach(editorInstance => {
+          editorInstance.blur()
+        })
+        // give focus back to svg-edit by giving it to the body element
+        svgeditBody.focus()
+
+        let i = selElems.length
+        while (i--) {
+          const elem = selElems[i]
+          // check that the element is a Squire-editable html element and set focus
+          if (elem?.getAttribute('shape') === 'html') {
+            // check that only one is selected
+            if (opts.selectedElement && !opts.multiselected) {
+              if( elem.id in squireEditors) {
+                squireEditors[elem.id].focus()
+              } else {
+                // TODO create a new editor for an object that hasn't got one yet (like one that was loaded from a file rather than created during the current session)
+                // The tricky part is that squire will erase everything inside the html tag it's given.  The original content will have to be copied in after
+                if(initializeSquire(elem)) {
+                  // give new editor focus
+                  squireEditors[elem.id].focus()
+                  // TODO: copy in original html here somewhere
+                }
+              }
+              // TODO: show the editor panel when after it's developed
+              //showPanel(true, 'star')
+            } else {
+              // hide the panel and defocus the editors
+
+              //showPanel(false, 'star')
+            }
+          }
         }
       }
     }
